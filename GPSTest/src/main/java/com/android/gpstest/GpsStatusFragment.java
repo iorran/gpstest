@@ -18,6 +18,7 @@
 package com.android.gpstest;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.graphics.Typeface;
@@ -27,19 +28,24 @@ import android.location.GnssStatus;
 import android.location.GpsSatellite;
 import android.location.GpsStatus;
 import android.location.Location;
+import android.media.MediaScannerConnection;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.text.format.DateFormat;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TableRow;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
@@ -60,8 +66,16 @@ import com.android.gpstest.util.PreferenceUtils;
 import com.android.gpstest.util.SortUtil;
 import com.android.gpstest.util.UIUtils;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.lang.reflect.Array;
+import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 
@@ -71,7 +85,7 @@ import static com.android.gpstest.model.ConstellationType.GNSS;
 import static com.android.gpstest.model.ConstellationType.SBAS;
 import static com.android.gpstest.model.SatelliteStatus.NO_DATA;
 
-public class GpsStatusFragment extends Fragment implements GpsTestListener {
+public class GpsStatusFragment extends Fragment implements GpsTestListener, View.OnClickListener {
 
     public final static String TAG = "GpsStatusFragment";
 
@@ -89,6 +103,13 @@ public class GpsStatusFragment extends Fragment implements GpsTestListener {
             mSpeedView, mSpeedAccuracyView, mBearingView, mBearingAccuracyView, mNumSats,
             mPdopLabelView, mPdopView, mHvdopLabelView, mHvdopView, mGnssNotAvailableView,
             mSbasNotAvailableView;
+
+    private Button saveBtn;
+    Context appContext;
+    public String time = null;
+    List<String> list;
+    List<String> list2;
+    List<String> list3;
 
     private TableRow mSpeedBearingAccuracyRow;
 
@@ -155,6 +176,9 @@ public class GpsStatusFragment extends Fragment implements GpsTestListener {
         mGnssNotAvailableView = v.findViewById(R.id.gnss_not_available);
         mSbasNotAvailableView = v.findViewById(R.id.sbas_not_available);
 
+        saveBtn = v.findViewById(R.id.save_btn);
+        saveBtn.setOnClickListener(this);
+
         mLatitudeView.setText(EMPTY_LAT_LONG);
         mLongitudeView.setText(EMPTY_LAT_LONG);
 
@@ -194,7 +218,22 @@ public class GpsStatusFragment extends Fragment implements GpsTestListener {
 
         GpsTestActivity.getInstance().addListener(this);
 
+        appContext = getContext().getApplicationContext();
+
+
+        this.list = new ArrayList<>();
+        this.list2 = new ArrayList<>();
+        this.list3 = new ArrayList<>();
+
         return v;
+    }
+
+    @Override
+    public void onClick(View view){
+        switch (view.getId()) {
+            case R.id.save_btn:
+                this.saveToTxt();
+        }
     }
 
     private void setStarted(boolean navigating) {
@@ -387,6 +426,141 @@ public class GpsStatusFragment extends Fragment implements GpsTestListener {
         updateLocationAccuracies(location);
         updateSpeedAndBearingAccuracies(location);
         updateFixTime();
+
+        this.fillLocations(location);
+    }
+
+    public void fillLocations(Location location){
+        String latitude = new DecimalFormat("#.0000000000").format(location.getLatitude()).replace(",",".");
+        String latitude2 = convert2graus(location.convert(location.getLatitude(),Location.FORMAT_SECONDS), 1); //converte pra grau, minuto, segundo
+        String longitude = new DecimalFormat("#.0000000000").format(location.getLongitude()).replace(",",".");
+        String longitude2 = convert2graus(location.convert(location.getLongitude(),Location.FORMAT_SECONDS), 2);//converte pra grau, minuto, segundo
+        String altitude = new DecimalFormat("00.00").format(location.getAltitude()).replace(",",".");
+        time = new SimpleDateFormat("dd-MM-yyyy_HH.mm.ss").format(location.getTime());
+        float exat = location.getAccuracy();
+        //arquivo 1
+        String message1 = latitude + ";" + longitude + ";"+altitude;
+        list.add(message1+"\r\n");
+        //arquivo 2
+        String message2 = latitude2 + ";" + longitude2 + ";"+altitude;
+        list2.add(message2+"\r\n");
+        //list2.add(location.convert(location.getLatitude(),Location.FORMAT_SECONDS)+ ";" +location.convert(location.getLongitude(),Location.FORMAT_SECONDS)+";"+altitude+"\r\n\r\n");
+        //arquivo 3
+        String time2 = new SimpleDateFormat("dd/MM/yyyy_HH:mm:ss").format(location.getTime());
+        String message3 = longitude+ ","+latitude + ","+altitude;
+        list3.add(message3+"\n");
+    }
+
+    //verifica se é possível criar e escrever arquivos
+    public boolean isExternalStorageWritable() {
+        String state = Environment.getExternalStorageState();
+        if(Environment.MEDIA_MOUNTED.equals(state))
+            return true;
+        return false;
+    }
+    //verifica se o path onde vão ser salvos os arquivos existem
+    public boolean pasta_existe(String pasta_path) {
+        boolean state = false;
+        File pasta = new File(pasta_path);
+        if(pasta.exists() && pasta.isDirectory())
+            state = true;
+        return state;
+    }
+    //escreve as coordenadas em graus, minutos e segundos de uma forma diferente
+    public String convert2graus(String Ddec, int ind)
+    {
+        String DMC = null;
+        String[] arrayString = Ddec.split(":");
+        int D = Integer.parseInt(arrayString[0]);
+        if(ind==1 && D<0)
+            DMC = String.valueOf(Math.abs(D))+"° "+arrayString[1]+"' "+arrayString[2]+"''  S";
+        if(ind==1 && D>=0)
+            DMC = String.valueOf(Math.abs(D))+"° "+arrayString[1]+"' "+arrayString[2]+"''  N";
+        if(ind==2 && D<0)
+            DMC = String.valueOf(Math.abs(D))+"° "+arrayString[1]+"' "+arrayString[2]+"''  W";
+        if(ind==2 && D>=0)
+            DMC = String.valueOf(Math.abs(D))+"° "+arrayString[1]+"' "+arrayString[2]+"''  E";
+        return DMC;
+    }
+
+    public void saveToTxt(){
+        if (isExternalStorageWritable()) {
+
+            File root = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            File pasta = new File(root+"/GPS_folder");
+            boolean success = true;
+            if (!pasta.exists()) {
+                success = pasta.mkdirs();
+            }
+            if (success) {
+                try {
+                    String kml1;
+                    String kml2;
+
+                    String time = new SimpleDateFormat("dd-MM-yyyy_HH.mm.ss").format(new Date());
+                    File arquivo = new File(pasta, "GPS_dados_Degrees_decimals_" + time + ".txt");
+                    File arquivo2 = new File(pasta, "GPS_dados_Degrees,Minutes,Seconds_" + time + ".txt");
+                    File arquivo3 = new File(pasta, "GPS_KML_" + time + ".kml");
+
+
+                    FileOutputStream stream = new FileOutputStream(arquivo, true);
+                    FileOutputStream stream2 = new FileOutputStream(arquivo2, true);
+                    FileOutputStream stream3 = new FileOutputStream(arquivo3, true);
+
+                    for (String str : list) {
+                        stream.write(str.getBytes());
+                    }
+                    for (String str2 : list2) {
+                        stream2.write(str2.getBytes());
+                    }
+
+                    kml1 = new String("<?xml version='1.0' encoding='UTF-8'?>\n" +
+                            "<kml xmlns='http://earth.google.com/kml/2.2'>\n" +
+                            "<Document>\n" +
+                            "<name>Android Versão API: "+Build.VERSION.SDK_INT+
+                            "</name>\n" +
+                            "<Style id='sh_ylw-pushpin_copy0'>\n" +
+                            "<IconStyle>\n" +
+                            "<scale>1.3</scale>\n" +
+                            "<Icon>\n" +
+                            "<href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>\n" +
+                            "</Icon>\n" +
+                            "<hotSpot x='20' y='2' xunits='pixels' yunits='pixels'/>\n" +
+                            "</IconStyle>\n" +
+                            "<LineStyle>\n" +
+                            "<color>ffde571d</color>\n" +
+                            "</LineStyle>\n" +
+                            "</Style>\n" +
+                            "<Placemark>\n" +
+                            "<name>Rota com celular Android</name>\n" +
+                            "<description>"+time +
+                            "</description>\n" +
+                            "<styleUrl>#msn_ylw-pushpin_copy0</styleUrl>\n" +
+                            "<LineString>\n" +
+                            "<tessellate>1</tessellate>\n" +
+                            "<coordinates>\n");
+                    kml2 = new String("</coordinates>\n" +
+                            "</LineString>  \n" +
+                            "</Placemark>\n" +
+                            "</Document>\n" +
+                            "</kml>");
+
+                    stream3.write(kml1.getBytes());
+                    for (String str3 : list3) {
+                        stream2.write(str3.getBytes());
+                    }
+                    stream3.write(kml2.getBytes());
+
+                    stream.close();
+                    stream2.close();
+                    stream3.close();
+
+                    Toast.makeText(appContext,"Dados coletados e salvos na pasta GPS_folder dentro da pasta pública Downloads",Toast.LENGTH_LONG).show();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
     public void onStatusChanged(String provider, int status, Bundle extras) {
