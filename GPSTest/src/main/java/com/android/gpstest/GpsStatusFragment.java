@@ -105,6 +105,7 @@ public class GpsStatusFragment extends Fragment implements GpsTestListener, View
             mSbasNotAvailableView;
 
     private Button saveBtn;
+    private TextView statusView;
     Context appContext;
     public String time = null;
     List<String> list;
@@ -177,6 +178,7 @@ public class GpsStatusFragment extends Fragment implements GpsTestListener, View
         mSbasNotAvailableView = v.findViewById(R.id.sbas_not_available);
 
         saveBtn = v.findViewById(R.id.save_btn);
+        statusView = v.findViewById(R.id.status);
         saveBtn.setOnClickListener(this);
 
         mLatitudeView.setText(EMPTY_LAT_LONG);
@@ -484,81 +486,94 @@ public class GpsStatusFragment extends Fragment implements GpsTestListener, View
     }
 
     public void saveToTxt(){
-        if (isExternalStorageWritable()) {
+        String statustText = "";
+        this.statusView.setText("");
+        statustText = this.statusView.getText() + " SD card : " + isExternalStorageWritable();
+        this.statusView.setText(statustText);
 
-            File root = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-            File pasta = new File(root+"/GPS_folder");
-            boolean success = true;
-            if (!pasta.exists()) {
-                success = pasta.mkdirs();
-            }
-            if (success) {
-                try {
-                    String kml1;
-                    String kml2;
+        File root = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
 
-                    String time = new SimpleDateFormat("dd-MM-yyyy_HH.mm.ss").format(new Date());
-                    File arquivo = new File(pasta, "GPS_dados_Degrees_decimals_" + time + ".txt");
-                    File arquivo2 = new File(pasta, "GPS_dados_Degrees,Minutes,Seconds_" + time + ".txt");
-                    File arquivo3 = new File(pasta, "GPS_KML_" + time + ".kml");
+        if (Environment.getExternalStorageState() == null) {
+            root = Environment.getDataDirectory();
+        }
+
+        statustText = this.statusView.getText() + " Path : " + root;
+        this.statusView.setText(statustText);
+
+        File pasta = new File(root+"/GPS_folder");
+        boolean success = true;
+        if (!pasta.exists()) {
+            success = pasta.mkdir();
+        }
+        statustText = this.statusView.getText() + " Folder: " + success;
+        this.statusView.setText(statustText);
+
+        if (success) {
+            try {
+                String kml1;
+                String kml2;
+
+                String time = new SimpleDateFormat("dd-MM-yyyy_HH.mm.ss").format(new Date());
+                File arquivo = new File(pasta, "GPS_dados_Degrees_decimals_" + time + ".txt");
+                File arquivo2 = new File(pasta, "GPS_dados_Degrees,Minutes,Seconds_" + time + ".txt");
+                File arquivo3 = new File(pasta, "GPS_KML_" + time + ".kml");
 
 
-                    FileOutputStream stream = new FileOutputStream(arquivo, true);
-                    FileOutputStream stream2 = new FileOutputStream(arquivo2, true);
-                    FileOutputStream stream3 = new FileOutputStream(arquivo3, true);
+                FileWriter stream = new FileWriter(arquivo, true);
+                FileWriter stream2 = new FileWriter(arquivo2, true);
+                FileWriter stream3 = new FileWriter(arquivo3, true);
 
-                    for (String str : list) {
-                        stream.write(str.getBytes());
-                    }
-                    for (String str2 : list2) {
-                        stream2.write(str2.getBytes());
-                    }
-
-                    kml1 = new String("<?xml version='1.0' encoding='UTF-8'?>\n" +
-                            "<kml xmlns='http://earth.google.com/kml/2.2'>\n" +
-                            "<Document>\n" +
-                            "<name>Android Versão API: "+Build.VERSION.SDK_INT+
-                            "</name>\n" +
-                            "<Style id='sh_ylw-pushpin_copy0'>\n" +
-                            "<IconStyle>\n" +
-                            "<scale>1.3</scale>\n" +
-                            "<Icon>\n" +
-                            "<href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>\n" +
-                            "</Icon>\n" +
-                            "<hotSpot x='20' y='2' xunits='pixels' yunits='pixels'/>\n" +
-                            "</IconStyle>\n" +
-                            "<LineStyle>\n" +
-                            "<color>ffde571d</color>\n" +
-                            "</LineStyle>\n" +
-                            "</Style>\n" +
-                            "<Placemark>\n" +
-                            "<name>Rota com celular Android</name>\n" +
-                            "<description>"+time +
-                            "</description>\n" +
-                            "<styleUrl>#msn_ylw-pushpin_copy0</styleUrl>\n" +
-                            "<LineString>\n" +
-                            "<tessellate>1</tessellate>\n" +
-                            "<coordinates>\n");
-                    kml2 = new String("</coordinates>\n" +
-                            "</LineString>  \n" +
-                            "</Placemark>\n" +
-                            "</Document>\n" +
-                            "</kml>");
-
-                    stream3.write(kml1.getBytes());
-                    for (String str3 : list3) {
-                        stream2.write(str3.getBytes());
-                    }
-                    stream3.write(kml2.getBytes());
-
-                    stream.close();
-                    stream2.close();
-                    stream3.close();
-
-                    Toast.makeText(appContext,"Dados coletados e salvos na pasta GPS_folder dentro da pasta pública Downloads",Toast.LENGTH_LONG).show();
-                } catch (IOException e) {
-                    e.printStackTrace();
+                for (String str : list) {
+                    stream.write(str);
                 }
+                for (String str2 : list2) {
+                    stream2.write(str2);
+                }
+
+                kml1 = new String("<?xml version='1.0' encoding='UTF-8'?>\n" +
+                        "<kml xmlns='http://earth.google.com/kml/2.2'>\n" +
+                        "<Document>\n" +
+                        "<name>Android Versão API: "+Build.VERSION.SDK_INT+
+                        "</name>\n" +
+                        "<Style id='sh_ylw-pushpin_copy0'>\n" +
+                        "<IconStyle>\n" +
+                        "<scale>1.3</scale>\n" +
+                        "<Icon>\n" +
+                        "<href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>\n" +
+                        "</Icon>\n" +
+                        "<hotSpot x='20' y='2' xunits='pixels' yunits='pixels'/>\n" +
+                        "</IconStyle>\n" +
+                        "<LineStyle>\n" +
+                        "<color>ffde571d</color>\n" +
+                        "</LineStyle>\n" +
+                        "</Style>\n" +
+                        "<Placemark>\n" +
+                        "<name>Rota com celular Android</name>\n" +
+                        "<description>"+time +
+                        "</description>\n" +
+                        "<styleUrl>#msn_ylw-pushpin_copy0</styleUrl>\n" +
+                        "<LineString>\n" +
+                        "<tessellate>1</tessellate>\n" +
+                        "<coordinates>\n");
+                kml2 = new String("</coordinates>\n" +
+                        "</LineString>  \n" +
+                        "</Placemark>\n" +
+                        "</Document>\n" +
+                        "</kml>");
+
+                stream3.write(kml1);
+                for (String str3 : list3) {
+                    stream2.write(str3);
+                }
+                stream3.write(kml2);
+
+                stream.close();
+                stream2.close();
+                stream3.close();
+
+                Toast.makeText(appContext,"Dados coletados e salvos na pasta GPS_folder dentro da pasta pública Downloads",Toast.LENGTH_LONG).show();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
     }
